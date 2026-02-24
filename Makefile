@@ -1,6 +1,6 @@
 # DeerFlow - Unified Development Environment
 
-.PHONY: help config check install dev stop clean docker-init docker-start docker-stop docker-logs docker-logs-frontend docker-logs-gateway
+.PHONY: help config check install dev stop clean docker-init docker-start docker-stop docker-restart docker-logs docker-logs-frontend docker-logs-gateway
 
 help:
 	@echo "DeerFlow Development Commands:"
@@ -15,6 +15,7 @@ help:
 	@echo "  make docker-init     - Build the custom k3s image (with pre-cached sandbox image)"
 	@echo "  make docker-start    - Start all services in Docker (localhost:2026)"
 	@echo "  make docker-stop     - Stop Docker development services"
+	@echo "  make docker-restart  - Stop then start (reload config.yaml and .env)"
 	@echo "  make docker-logs     - View Docker development logs"
 	@echo "  make docker-logs-frontend - View Docker frontend logs"
 	@echo "  make docker-logs-gateway - View Docker gateway logs"
@@ -250,6 +251,11 @@ docker-start:
 # Stop Docker development environment
 docker-stop:
 	@./scripts/docker.sh stop
+
+# Restart Docker (stop + start) to reload config.yaml and .env
+docker-restart:
+	@./scripts/docker.sh stop
+	@./scripts/docker.sh start
 
 # View Docker development logs
 docker-logs:

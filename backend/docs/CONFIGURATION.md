@@ -38,6 +38,60 @@ models:
           type: enabled
 ```
 
+**模型配置字段说明（Schema）**：
+
+配置标准由 `backend/src/config/model_config.py` 中的 `ModelConfig`（Pydantic）定义：
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `name` | 是 | 唯一标识，用于 API/前端选择模型 |
+| `use` | 是 | LangChain 模型类路径，如 `langchain_openai:ChatOpenAI` |
+| `model` | 是 | 传给厂商 API 的模型名 |
+| `display_name` | 否 | 展示名称，默认 None |
+| `description` | 否 | 描述，默认 None |
+| `supports_vision` | 否 | 是否支持图像输入（view_image 等），默认 false |
+| `supports_thinking` | 否 | 是否支持思考模式，默认 false |
+| `when_thinking_enabled` | 否 | 开启思考时追加的请求体（如 extra_body） |
+
+以 `$` 开头的值会从环境变量解析（如 `$OPENAI_API_KEY`）。除上述字段外，**允许任意额外字段**（`extra="allow"`），例如 `api_key`、`api_base`、`max_tokens`、`temperature` 等，会原样传给 `use` 指定的类。
+
+**不同供应商的配置应对齐哪里？必须配置项有哪些？**
+
+- **对齐来源**：config 里每个模型条目的 YAML 键（除 DeerFlow 保留字段外）会**原样**传给对应 LangChain 类的构造函数，因此：
+  - **参数名、是否必填、可选值**以 **LangChain 官方文档** 为准（见下表链接）。
+  - 若使用代理、自建或兼容 OpenAI 的第三方（如部分国产大模型），再参考该厂商的 API 文档（base_url、模型名、鉴权方式等）。
+- **DeerFlow 层必须项**（所有供应商通用）：`name`、`use`、`model`。其余为可选；`api_key` 等由各 LangChain 包决定是否必填（多数可从环境变量读取）。
+
+| 供应商 | LangChain 类路径 (`use`) | 官方文档（对齐用） | 通常必配项 | 常用可选 |
+|--------|---------------------------|---------------------|------------|----------|
+| **OpenAI** | `langchain_openai:ChatOpenAI` | [ChatOpenAI Reference](https://reference.langchain.com/python/integrations/langchain_openai/ChatOpenAI/) | `model`（`api_key` 可从 `OPENAI_API_KEY` 读取） | `api_key`, `base_url`, `max_tokens`, `temperature`, `timeout`, `max_retries` |
+| **Anthropic** | `langchain_anthropic:ChatAnthropic` | [ChatAnthropic](https://reference.langchain.com/python/integrations/langchain_anthropic/ChatAnthropic/) | `model`（API 钥可从 `ANTHROPIC_API_KEY` 读取） | `anthropic_api_key`, `max_tokens`, `temperature`, `timeout` |
+| **DeepSeek** | `langchain_deepseek:ChatDeepSeek` | [DeepSeek 集成](https://python.langchain.com/docs/integrations/chat/deepseek/) | `model`（`api_key` 可从 `DEEPSEEK_API_KEY` 读取） | `api_key`, `api_base`, `max_tokens`, `temperature`, `timeout` |
+| **兼容 OpenAI 的第三方（Kimi/豆包等）** | `src.models.patched_deepseek:PatchedChatDeepSeek` 或 `langchain_deepseek:ChatDeepSeek` | 同上 + 厂商 API 文档 | `model`、`api_base`（厂商 endpoint）、`api_key`（厂商钥） | `max_tokens`, `temperature`, 思考模式见下 |
+
+说明：
+
+- **api_base / base_url**：走第三方或自建时必配，指向该厂商的 API 根地址（如 Kimi `https://api.moonshot.cn/v1`、豆包 `https://ark.cn-beijing.volces.com/api/v3`）。
+- **思考 / reasoning 模式**：若厂商支持“思考”并需在请求里开启，需同时设 `supports_thinking: true` 和 `when_thinking_enabled`（例如 `extra_body.thinking.type: enabled`），具体字段以厂商 API 文档为准。
+- **Anthropic**：若使用 `langchain_anthropic`，注意参数名可能是 `anthropic_api_key` / `anthropic_api_url`，与 OpenAI 的 `api_key` / `base_url` 不同，需按官方 Reference 填写。
+
+**如何验证模型配置是否成功**：
+
+1. **仅校验配置加载与实例化**（不调用 API）  
+   在 `backend` 目录执行：
+   ```bash
+   python scripts/verify_models.py
+   ```
+2. **校验并真实调用一次模型**（会消耗 API 额度）：
+   ```bash
+   python scripts/verify_models.py --invoke
+   ```
+3. **通过 Gateway API 查看已配置模型**（需先启动 Gateway）：
+   ```bash
+   curl http://localhost:8001/api/models
+   curl http://localhost:8001/api/models/gpt-4
+   ```
+
 ### Tool Groups
 
 Organize tools into logical groups:
